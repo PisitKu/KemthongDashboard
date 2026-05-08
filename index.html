@@ -86,6 +86,7 @@
         <button class="tab-btn" onclick="switchTab('breakeven')">จุดคุ้มทุน & ควบคุมต้นทุน</button>
         <button class="tab-btn" onclick="switchTab('expense-analysis')">วิเคราะห์ค่าใช้จ่าย (รายประเภท)</button>
         <button class="tab-btn" onclick="switchTab('income-jobs')">สรุปรายรับ & จำนวนงาน</button>
+        <button class="tab-btn" onclick="switchTab('daily-analysis')">วิเคราะห์รายวัน</button>
     </div>
 
     <!-- TAB 1: OVERVIEW -->
@@ -231,6 +232,57 @@
         </div>
     </div>
 
+    <!-- TAB 6: DAILY ANALYSIS -->
+    <div id="tab-daily-analysis" class="tab-content">
+        <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+            <!-- Left Side: Selection -->
+            <div style="flex: 0 0 350px;">
+                <div class="card">
+                    <p class="section-title">1. เลือกเดือน</p>
+                    <div style="overflow-y: auto; max-height: 250px;">
+                        <table>
+                            <thead><tr><th>เดือน / ปี</th></tr></thead>
+                            <tbody id="dailyMonthBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card">
+                    <p class="section-title">2. เลือกวัน</p>
+                    <div style="overflow-y: auto; max-height: 350px;">
+                        <table>
+                            <thead><tr><th>วันที่</th><th class="amt">คงเหลือ</th></tr></thead>
+                            <tbody id="dailyDayBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <!-- Right Side: Breakdown -->
+            <div style="flex: 1; min-width: 300px;">
+                <div class="card">
+                    <p class="section-title" id="dailyBreakdownTitle">วิเคราะห์รายวัน: (เลือกวันที่)</p>
+                    <div class="stats-grid" style="grid-template-columns: 1fr 1fr;">
+                        <div class="card" style="padding:15px; margin-bottom:10px;"><p class="card-title">รายรับวันนี้</p><p class="card-val val-income" id="day-inc-total">0</p></div>
+                        <div class="card" style="padding:15px; margin-bottom:10px;"><p class="card-title">รายจ่ายวันนี้</p><p class="card-val val-expense" id="day-exp-total">0</p></div>
+                    </div>
+                    <p class="card-title">สรุปตามประเภทค่าใช้จ่าย (Group by G)</p>
+                    <div style="overflow-x: auto;">
+                        <table>
+                            <thead><tr><th>ประเภท (G)</th><th class="amt">จำนวนเงิน</th></tr></thead>
+                            <tbody id="dayGroupBody"></tbody>
+                        </table>
+                    </div>
+                    <p class="card-title" style="margin-top:20px;">รายการทั้งหมดของวันนี้</p>
+                    <div style="overflow-x: auto;">
+                        <table>
+                            <thead><tr><th>รายการ (C)</th><th>ประเภท (G)</th><th class="amt">รายรับ</th><th class="amt">รายจ่าย</th></tr></thead>
+                            <tbody id="dayItemsBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- DRILL DOWN (Common for all tabs) -->
     <div class="card" id="drillSection" style="display:none;">
         <p class="section-title" id="drillTitle">รายละเอียดรายการรวม</p>
@@ -320,13 +372,25 @@
 
                 const mKey = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}`;
                 if (!monthlyData[mKey]) {
-                    monthlyData[mKey] = { label: date.toLocaleDateString('th-TH', { month: 'long', year: 'numeric' }), inc: 0, exp: 0, jobs: 0, catTotals: {}, items: [] };
+                    monthlyData[mKey] = { label: date.toLocaleDateString('th-TH', { month: 'long', year: 'numeric' }), inc: 0, exp: 0, jobs: 0, catTotals: {}, days: {}, items: [] };
                 }
                 monthlyData[mKey].inc += inc;
                 monthlyData[mKey].exp += exp;
                 if (inc > 0) monthlyData[mKey].jobs++;
                 if (exp > 0) monthlyData[mKey].catTotals[type] = (monthlyData[mKey].catTotals[type] || 0) + exp;
-                monthlyData[mKey].items.push({ date: date.toLocaleDateString('th-TH'), raw: date, item, type, inc, exp });
+                
+                const dKey = date.toISOString().split('T')[0];
+                if (!monthlyData[mKey].days[dKey]) {
+                    monthlyData[mKey].days[dKey] = { date: date, label: date.toLocaleDateString('th-TH'), inc: 0, exp: 0, types: {}, items: [] };
+                }
+                monthlyData[mKey].days[dKey].inc += inc;
+                monthlyData[mKey].days[dKey].exp += exp;
+                monthlyData[mKey].days[dKey].items.push({ item, type, inc, exp });
+                if (exp > 0) {
+                    monthlyData[mKey].days[dKey].types[type] = (monthlyData[mKey].days[dKey].types[type] || 0) + exp;
+                }
+
+                monthlyData[mKey].items.push({ date: date.toLocaleDateString('th-TH'), raw: date, dKey, item, type, inc, exp });
             }
         });
 
