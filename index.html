@@ -585,54 +585,76 @@
         document.getElementById(`tab-${t}`).classList.add('active');
     }
 
-    function updateCharts() {
+    function updateMainCharts() {
         const keys = Object.keys(monthlyData).sort();
         const labels = keys.map(k => monthlyData[k].label);
 
-        if (charts.ovT) charts.ovT.destroy();
-        charts.ovT = new Chart(document.getElementById('ovTrendChart'), {
-            type: 'bar', data: { labels, datasets: [{ label: 'รายรับ', data: keys.map(k => monthlyData[k].inc), backgroundColor: '#059669' }, { label: 'รายจ่าย', data: keys.map(k => monthlyData[k].exp), backgroundColor: '#dc2626' }] },
-            options: { maintainAspectRatio: false }
-        });
+        // OV Trend
+        const ovTrendCtx = document.getElementById('ovTrendChart');
+        if (ovTrendCtx) {
+            if (charts.ovT) charts.ovT.destroy();
+            charts.ovT = new Chart(ovTrendCtx, {
+                type: 'bar', data: { labels, datasets: [{ label: 'รายรับ', data: keys.map(k => monthlyData[k].inc), backgroundColor: '#059669' }, { label: 'รายจ่าย', data: keys.map(k => monthlyData[k].exp), backgroundColor: '#dc2626' }] },
+                options: { maintainAspectRatio: false }
+            });
+        }
 
-        if (charts.profit) charts.profit.destroy();
-        const selExps = keys.map(k => selectedCats.reduce((sum, cat) => sum + (monthlyData[k].catTotals[cat] || 0), 0));
-        charts.profit = new Chart(document.getElementById('profitBarChart'), {
-            type: 'bar', data: { labels, datasets: [
-                { label: 'รายรับรวม', data: keys.map(k => monthlyData[k].inc), backgroundColor: 'rgba(5, 150, 105, 0.7)' },
-                { label: 'ต้นทุนที่เลือก', data: selExps, backgroundColor: 'rgba(220, 38, 38, 0.7)' },
-                { label: 'กำไรขั้นต้น', data: keys.map((k,i) => monthlyData[k].inc - selExps[i]), backgroundColor: 'rgba(37, 99, 235, 0.7)' }
-            ]}, options: { maintainAspectRatio: false }
-        });
+        // Profit Bar
+        const profitCtx = document.getElementById('profitBarChart');
+        if (profitCtx) {
+            if (charts.profit) charts.profit.destroy();
+            const selExps = keys.map(k => selectedCats.reduce((sum, cat) => sum + (monthlyData[k].catTotals[cat] || 0), 0));
+            charts.profit = new Chart(profitCtx, {
+                type: 'bar', data: { labels, datasets: [
+                    { label: 'รายรับรวม', data: keys.map(k => monthlyData[k].inc), backgroundColor: 'rgba(5, 150, 105, 0.7)' },
+                    { label: 'ต้นทุนที่เลือก', data: selExps, backgroundColor: 'rgba(220, 38, 38, 0.7)' },
+                    { label: 'กำไรขั้นต้น', data: keys.map((k,i) => monthlyData[k].inc - selExps[i]), backgroundColor: 'rgba(37, 99, 235, 0.7)' }
+                ]}, options: { maintainAspectRatio: false }
+            });
+        }
 
-        if (charts.expS) charts.expS.destroy();
-        const expDatasets = selectedCats.map((cat, idx) => ({
-            label: cat, data: keys.map(k => monthlyData[k].catTotals[cat] || 0), backgroundColor: COLORS[idx % COLORS.length]
-        }));
-        charts.expS = new Chart(document.getElementById('expStackedBarChart'), {
-            type: 'bar', data: { labels, datasets: expDatasets },
-            options: { maintainAspectRatio: false, scales: { x: { stacked: true }, y: { stacked: true } } }
-        });
+        // Expense Stacked Bar
+        const expStackCtx = document.getElementById('expStackedBarChart');
+        if (expStackCtx) {
+            if (charts.expS) charts.expS.destroy();
+            const expDatasets = selectedCats.map((cat, idx) => ({
+                label: cat, data: keys.map(k => monthlyData[k].catTotals[cat] || 0), backgroundColor: COLORS[idx % COLORS.length]
+            }));
+            charts.expS = new Chart(expStackCtx, {
+                type: 'bar', data: { labels, datasets: expDatasets },
+                options: { maintainAspectRatio: false, scales: { x: { stacked: true }, y: { stacked: true } } }
+            });
+        }
 
-        if (charts.jobT) charts.jobT.destroy();
-        charts.jobT = new Chart(document.getElementById('jobTrendChart'), {
-            type: 'line', data: { labels, datasets: [{ label: 'จำนวนงาน', data: keys.map(k => monthlyData[k].jobs), borderColor: '#2563eb', tension: 0.3, fill: true, backgroundColor: 'rgba(37, 99, 235, 0.1)' }] },
-            options: { maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
-        });
+        // Job Trend
+        const jobTrendCtx = document.getElementById('jobTrendChart');
+        if (jobTrendCtx) {
+            if (charts.jobT) charts.jobT.destroy();
+            charts.jobT = new Chart(jobTrendCtx, {
+                type: 'line', data: { labels, datasets: [{ label: 'จำนวนงาน', data: keys.map(k => monthlyData[k].jobs), borderColor: '#2563eb', tension: 0.3, fill: true, backgroundColor: 'rgba(37, 99, 235, 0.1)' }] },
+                options: { maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+            });
+        }
     }
 
     function updateMonthCharts(k) {
         const d = monthlyData[k];
-        if (charts.ovP) charts.ovP.destroy();
-        charts.ovP = new Chart(document.getElementById('ovPieChart'), { type: 'doughnut', data: { labels: ['รายรับ', 'รายจ่าย'], datasets: [{ data: [d.inc, d.exp], backgroundColor: ['#059669', '#dc2626'] }] }, options: { maintainAspectRatio: false } });
+        const ovPieCtx = document.getElementById('ovPieChart');
+        if (ovPieCtx) {
+            if (charts.ovP) charts.ovP.destroy();
+            charts.ovP = new Chart(ovPieCtx, { type: 'doughnut', data: { labels: ['รายรับ', 'รายจ่าย'], datasets: [{ data: [d.inc, d.exp], backgroundColor: ['#059669', '#dc2626'] }] }, options: { maintainAspectRatio: false } });
+        }
 
-        if (charts.expP) charts.expP.destroy();
-        const pieLabels = selectedCats.filter(cat => (d.catTotals[cat] || 0) > 0);
-        const pieData = pieLabels.map(cat => d.catTotals[cat]);
-        charts.expP = new Chart(document.getElementById('expPieChart'), {
-            type: 'pie', data: { labels: pieLabels, datasets: [{ data: pieData, backgroundColor: COLORS }] },
-            options: { maintainAspectRatio: false }
-        });
+        const expPieCtx = document.getElementById('expPieChart');
+        if (expPieCtx) {
+            if (charts.expP) charts.expP.destroy();
+            const pieLabels = selectedCats.filter(cat => (d.catTotals[cat] || 0) > 0);
+            const pieData = pieLabels.map(cat => d.catTotals[cat]);
+            charts.expP = new Chart(expPieCtx, {
+                type: 'pie', data: { labels: pieLabels, datasets: [{ data: pieData, backgroundColor: COLORS }] },
+                options: { maintainAspectRatio: false }
+            });
+        }
     }
 
     init();
