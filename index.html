@@ -85,6 +85,7 @@
         <button class="tab-btn" onclick="switchTab('breakeven')">จุดคุ้มทุน & ควบคุมต้นทุน</button>
         <button class="tab-btn" onclick="switchTab('expense-analysis')">วิเคราะห์ค่าใช้จ่าย (รายประเภท)</button>
         <button class="tab-btn" onclick="switchTab('income-jobs')">สรุปรายรับ & จำนวนงาน</button>
+        <button class="tab-btn" onclick="switchTab('unit-analysis')">วิเคราะห์ต่อหน่วย (โต๊ะ/ชุด)</button>
         <button class="tab-btn" onclick="switchTab('daily-analysis')">วิเคราะห์รายวัน</button>
     </div>
 
@@ -209,7 +210,37 @@
         <div class="card"><p class="card-title">แนวโน้มจำนวนงาน</p><div class="chart-container"><canvas id="jobTrendChart"></canvas></div></div>
     </div>
 
-    <!-- TAB 6: DAILY ANALYSIS -->
+    <!-- TAB 6: UNIT ANALYSIS -->
+    <div id="tab-unit-analysis" class="tab-content">
+        <div class="stats-grid">
+            <div class="card"><p class="card-title">รายได้เฉลี่ยต่อหน่วย (เดือนที่เลือก)</p><p class="card-val" style="color:var(--income)" id="unit-inc-avg">0</p></div>
+            <div class="card"><p class="card-title">ต้นทุนเฉลี่ยต่อหน่วย (เดือนที่เลือก)</p><p class="card-val" style="color:var(--expense)" id="unit-cost-avg">0</p></div>
+            <div class="card"><p class="card-title">กำไรเฉลี่ยต่อหน่วย (เดือนที่เลือก)</p><p class="card-val" id="unit-profit-avg">0</p></div>
+        </div>
+        <div class="card">
+            <p class="card-title">แนวโน้มรายได้และต้นทุนต่อหน่วย (รายเดือน)</p>
+            <div class="chart-container" style="height: 400px;"><canvas id="unitTrendChart"></canvas></div>
+        </div>
+        <div class="card">
+            <p class="section-title">ตารางสรุปวิเคราะห์ต่อหน่วยรายเดือน</p>
+            <div style="overflow-x: auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>เดือน / ปี</th>
+                            <th class="amt">จำนวนหน่วยรวม</th>
+                            <th class="amt">รายได้ / หน่วย</th>
+                            <th class="amt">ต้นทุน / หน่วย</th>
+                            <th class="amt">กำไร / หน่วย</th>
+                        </tr>
+                    </thead>
+                    <tbody id="unitTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 7: DAILY ANALYSIS -->
     <div id="tab-daily-analysis" class="tab-content">
         <div style="display: flex; gap: 20px; flex-wrap: wrap;">
             <div style="flex: 0 0 350px;">
@@ -301,6 +332,7 @@
             const exp = parseFloat(row[8]?.replace(/,/g, '')) || 0;
             const item = row[2] || 'ไม่ระบุ';
             const type = row[6] ? row[6].trim() : 'ทั่วไป';
+            const units = parseFloat(row[3]?.replace(/,/g, '')) || 0; // Column D
 
             if (date && (inc > 0 || exp > 0)) {
                 gInc += inc; gExp += exp;
@@ -309,11 +341,18 @@
 
                 const mKey = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}`;
                 if (!monthlyData[mKey]) {
-                    monthlyData[mKey] = { label: date.toLocaleDateString('th-TH', { month: 'long', year: 'numeric' }), inc: 0, exp: 0, jobs: 0, catTotals: {}, days: {}, items: [] };
+                    monthlyData[mKey] = { 
+                        label: date.toLocaleDateString('th-TH', { month: 'long', year: 'numeric' }), 
+                        inc: 0, exp: 0, jobs: 0, catTotals: {}, days: {}, items: [],
+                        totalUnits: 0 // Track total units (tables/sets)
+                    };
                 }
                 monthlyData[mKey].inc += inc;
                 monthlyData[mKey].exp += exp;
-                if (inc > 0) monthlyData[mKey].jobs++;
+                if (inc > 0) {
+                    monthlyData[mKey].jobs++;
+                    monthlyData[mKey].totalUnits += units; // Sum units for income rows
+                }
                 if (exp > 0) monthlyData[mKey].catTotals[type] = (monthlyData[mKey].catTotals[type] || 0) + exp;
                 
                 const dKey = date.toISOString().split('T')[0];
@@ -325,7 +364,7 @@
                 monthlyData[mKey].days[dKey].items.push({ item, type, inc, exp });
                 if (exp > 0) monthlyData[mKey].days[dKey].types[type] = (monthlyData[mKey].days[dKey].types[type] || 0) + exp;
 
-                monthlyData[mKey].items.push({ date: date.toLocaleDateString('th-TH'), raw: date, dKey, item, type, inc, exp });
+                monthlyData[mKey].items.push({ date: date.toLocaleDateString('th-TH'), raw: date, dKey, item, type, inc, exp, units });
             }
         });
 
@@ -359,9 +398,28 @@
         renderJobTable();
         renderExpMonthTable();
         renderDailyMonthTable();
+        renderUnitTable();
         updateMainCharts();
         if (!activeKey) activeKey = Object.keys(monthlyData).sort().reverse()[0];
         if (activeKey) selectMonth(activeKey);
+    }
+
+    function renderUnitTable() {
+        const body = document.getElementById('unitTableBody'); body.innerHTML = '';
+        Object.keys(monthlyData).sort().reverse().forEach(k => {
+            const d = monthlyData[k];
+            const sumSel = selectedCats.reduce((sum, cat) => sum + (d.catTotals[cat] || 0), 0);
+            const units = d.totalUnits || 0;
+            const incPerUnit = units > 0 ? d.inc / units : 0;
+            const costPerUnit = units > 0 ? sumSel / units : 0;
+            const profitPerUnit = units > 0 ? (d.inc - sumSel) / units : 0;
+
+            const tr = document.createElement('tr');
+            tr.className = 'row-month'; tr.id = `unit-${k}`;
+            tr.onclick = () => selectMonth(k);
+            tr.innerHTML = `<td>${d.label}</td><td class="amt">${fmt(units)}</td><td class="amt" style="color:var(--income)">${fmt(incPerUnit)}</td><td class="amt" style="color:var(--expense)">${fmt(costPerUnit)}</td><td class="amt" style="color:${profitPerUnit >= 0 ? 'var(--income)' : 'var(--expense)'}">${fmt(profitPerUnit)}</td>`;
+            body.appendChild(tr);
+        });
     }
 
     function renderOverviewTable() {
@@ -429,10 +487,10 @@
 
     function selectMonth(k) {
         if (activeKey) {
-            ['ov', 'in', 'job', 'exp', 'expMonth', 'dailyMonth'].forEach(p => document.getElementById(`${p}-${activeKey}`)?.classList.remove('active'));
+            ['ov', 'in', 'job', 'exp', 'expMonth', 'dailyMonth', 'unit'].forEach(p => document.getElementById(`${p}-${activeKey}`)?.classList.remove('active'));
         }
         activeKey = k;
-        ['ov', 'in', 'job', 'exp', 'expMonth', 'dailyMonth'].forEach(p => document.getElementById(`${p}-${k}`)?.classList.add('active'));
+        ['ov', 'in', 'job', 'exp', 'expMonth', 'dailyMonth', 'unit'].forEach(p => document.getElementById(`${p}-${k}`)?.classList.add('active'));
         
         const d = monthlyData[k];
         const sumSel = selectedCats.reduce((sum, cat) => sum + (d.catTotals[cat] || 0), 0);
@@ -451,6 +509,14 @@
             document.getElementById('exa-total').innerText = fmt(sumSel) + ' บาท';
             document.getElementById('exa-count').innerText = selExpsList.length + ' รายการ';
             document.getElementById('exa-avg').innerText = fmt(selExpsList.length > 0 ? sumSel / selExpsList.length : 0) + ' บาท';
+        }
+
+        // Unit Analysis Cards
+        if (document.getElementById('unit-inc-avg')) {
+            const u = d.totalUnits || 0;
+            document.getElementById('unit-inc-avg').innerText = fmt(u > 0 ? d.inc / u : 0) + ' บาท';
+            document.getElementById('unit-cost-avg').innerText = fmt(u > 0 ? sumSel / u : 0) + ' บาท';
+            document.getElementById('unit-profit-avg').innerText = fmt(u > 0 ? (d.inc - sumSel) / u : 0) + ' บาท';
         }
 
         updateBreakevenView(k, sumSel, d.inc);
@@ -590,6 +656,32 @@
         if (jobTrendCtx) {
             if (charts.jobT) charts.jobT.destroy();
             charts.jobT = new Chart(jobTrendCtx, { type: 'line', data: { labels, datasets: [{ label: 'จำนวนงาน', data: keys.map(k => monthlyData[k].jobs), borderColor: '#2563eb', fill: true, backgroundColor: 'rgba(37, 99, 235, 0.1)' }] }, options: { maintainAspectRatio: false } });
+        }
+
+        // Unit Trend Chart
+        const unitTrendCtx = document.getElementById('unitTrendChart');
+        if (unitTrendCtx) {
+            if (charts.unitT) charts.unitT.destroy();
+            const unitIncData = keys.map(k => {
+                const u = monthlyData[k].totalUnits || 0;
+                return u > 0 ? monthlyData[k].inc / u : 0;
+            });
+            const unitCostData = keys.map(k => {
+                const u = monthlyData[k].totalUnits || 0;
+                const cost = selectedCats.reduce((s,c) => s + (monthlyData[k].catTotals[c]||0), 0);
+                return u > 0 ? cost / u : 0;
+            });
+            charts.unitT = new Chart(unitTrendCtx, {
+                type: 'line',
+                data: {
+                    labels,
+                    datasets: [
+                        { label: 'รายได้ / หน่วย', data: unitIncData, borderColor: 'var(--income)', tension: 0.3 },
+                        { label: 'ต้นทุน / หน่วย', data: unitCostData, borderColor: 'var(--expense)', tension: 0.3 }
+                    ]
+                },
+                options: { maintainAspectRatio: false }
+            });
         }
     }
 
