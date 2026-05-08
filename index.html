@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kemthong Dashboard - Business Intelligence</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Sarabun:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root { 
+            --primary: #2563eb; --income: #059669; --expense: #dc2626; --bg: #f1f5f9; 
+            --card: #ffffff; --text: #1e293b; --muted: #64748b; 
+        }
+        body { font-family: 'Sarabun', sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; }
+        .container { max-width: 1400px; margin: 0 auto; }
+        .card { background: var(--card); padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); margin-bottom: 25px; }
+        .card-title { font-size: 0.9rem; color: var(--muted); text-transform: uppercase; font-weight: 700; margin-bottom: 12px; }
+        
+        .tab-bar { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; overflow-x: auto; }
+        .tab-btn { 
+            padding: 10px 20px; border: none; background: transparent; 
+            font-family: inherit; font-weight: 700; font-size: 0.95rem; color: var(--muted);
+            cursor: pointer; transition: 0.2s; border-radius: 8px; white-space: nowrap;
+        }
+        .tab-btn:hover { background: #e2e8f0; color: var(--text); }
+        .tab-btn.active { color: var(--primary); background: #dbeafe; }
+
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 25px; }
+        .card-val { font-size: 1.6rem; font-weight: 700; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.9rem; }
+        th, td { text-align: left; padding: 10px; border-bottom: 1px solid #e2e8f0; }
+        th { background: #f8fafc; font-weight: 700; color: var(--muted); }
+        .amt { text-align: right; font-weight: 700; }
+        
+        .row-month { cursor: pointer; transition: 0.2s; }
+        .row-month:hover { background: #eff6ff !important; }
+        .row-month.active { background: #dbeafe !important; border-left: 4px solid var(--primary); }
+
+        .charts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); gap: 20px; margin-bottom: 25px; }
+        .chart-container { height: 350px; position: relative; }
+        
+        #loading { position: fixed; top:0; left:0; width:100%; height:100%; background:white; display:flex; justify-content:center; align-items:center; z-index:1000; font-weight:bold; }
+        .section-title { font-size: 1.1rem; font-weight: 700; color: var(--primary); margin-bottom: 15px; }
+
+        .category-config { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; padding: 15px; background: #fff; border-radius: 10px; border: 1px solid #e2e8f0; }
+        .cat-chip { 
+            padding: 5px 12px; border-radius: 15px; border: 1px solid #cbd5e1; font-size: 0.85rem; 
+            cursor: pointer; display: flex; align-items: center; gap: 5px; user-select: none;
+        }
+        .cat-chip.selected { background: var(--primary); color: white; border-color: var(--primary); }
+        
+        .insight-text { font-size: 0.85rem; padding: 10px; border-radius: 8px; margin-top: 5px; line-height: 1.4; }
+        .insight-good { background: #f0fdf4; color: #166534; border-left: 4px solid #166534; }
+        .insight-bad { background: #fef2f2; color: #991b1b; border-left: 4px solid #991b1b; }
+
+        @media (max-width: 600px) { .charts-grid { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+
+<div id="loading">กำลังเตรียมข้อมูลวิเคราะห์ธุรกิจ...</div>
+
+<div class="container">
+    <header style="margin-bottom: 20px; text-align:center;">
+        <h1 style="color: var(--primary); margin:0;">Kemthong Business Dashboard</h1>
+        <p style="color: var(--muted); font-size: 0.85rem;" id="last-update"></p>
+    </header>
+
+    <div class="card">
+        <p class="card-title">ตั้งค่าต้นทุนวิเคราะห์ (คอลัมน์ G)</p>
+        <div class="category-config" id="categorySelector"></div>
+    </div>
+
+    <div class="tab-bar">
+        <button class="tab-btn active" onclick="switchTab('overview')">ภาพรวมการเงิน</button>
+        <button class="tab-btn" onclick="switchTab('analysis')">วิเคราะห์กำไรขั้นต้น</button>
+        <button class="tab-btn" onclick="switchTab('expense-analysis')">วิเคราะห์ค่าใช้จ่าย (รายประเภท)</button>
+        <button class="tab-btn" onclick="switchTab('income-jobs')">สรุปรายรับ & จำนวนงาน</button>
+    </div>
+
+    <!-- TAB 1: OVERVIEW -->
+    <div id="tab-overview" class="tab-content active">
+        <div class="stats-grid">
+            <div class="card"><p class="card-title">รายรับรวมทั้งหมด</p><p class="card-val" style="color:var(--income)" id="ov-inc-total">0</p></div>
+            <div class="card"><p class="card-title">รายจ่ายรวมทั้งหมด</p><p class="card-val" style="color:var(--expense)" id="ov-exp-total">0</p></div>
+            <div class="card" id="ov-bal-card"><p class="card-title">เงินคงเหลือรวม</p><p class="card-val" id="ov-bal-total">0</p></div>
+        </div>
+        <div class="card">
+            <p class="section-title">สรุปรายเดือน</p>
+            <div style="overflow-x: auto;">
+                <table>
+                    <thead><tr><th>เดือน / ปี</th><th class="amt">รายรับ</th><th class="amt">รายจ่าย</th><th class="amt">คงเหลือ</th></tr></thead>
+                    <tbody id="ovBody"></tbody>
+                </table>
+            </div>
+        </div>
+        <div class="charts-grid">
+            <div class="card"><p class="card-title">แนวโน้มรายรับ-รายจ่าย</p><div class="chart-container"><canvas id="ovTrendChart"></canvas></div></div>
+            <div class="card"><p class="card-title">สัดส่วน Income vs Expense</p><div class="chart-container"><canvas id="ovPieChart"></canvas></div></div>
+        </div>
+    </div>
+
+    <!-- TAB 2: ANALYSIS (GROSS PROFIT) -->
+    <div id="tab-analysis" class="tab-content">
+        <div class="stats-grid">
+            <div class="card"><p class="card-title">รายรับ (เดือนที่เลือก)</p><p class="card-val" style="color:var(--income)" id="ana-inc-total">0</p></div>
+            <div class="card"><p class="card-title">ต้นทุนหมวดที่เลือก (เดือนที่เลือก)</p><p class="card-val" style="color:var(--expense)" id="ana-cost-total">0</p></div>
+            <div class="card" id="ana-profit-card"><p class="card-title">กำไรขั้นต้น (เดือนที่เลือก)</p><p class="card-val" id="ana-profit-total">0</p></div>
+        </div>
+        <div class="card">
+            <p class="card-title">เปรียบเทียบ รายรับ VS รายจ่ายหมวดที่เลือก VS กำไร</p>
+            <div class="chart-container" style="height: 400px;"><canvas id="profitBarChart"></canvas></div>
+        </div>
+        <div class="charts-grid">
+            <div class="card">
+                <p class="card-title">บทวิเคราะห์กำไรรายเดือน</p>
+                <div style="overflow-y: auto; height: 300px;">
+                    <table id="insightTable">
+                        <thead><tr><th>เดือน / ปี</th><th class="amt">กำไรขั้นต้น</th><th>วิเคราะห์</th></tr></thead>
+                        <tbody id="insightBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 3: EXPENSE ANALYSIS -->
+    <div id="tab-expense-analysis" class="tab-content">
+        <div class="stats-grid">
+            <div class="card"><p class="card-title">ยอดรวมค่าใช้จ่ายที่เลือก (เดือนที่เลือก)</p><p class="card-val" style="color:var(--expense)" id="exa-total">0</p></div>
+            <div class="card"><p class="card-title">จำนวนรายการ (เดือนที่เลือก)</p><p class="card-val" id="exa-count">0 รายการ</p></div>
+            <div class="card"><p class="card-title">เฉลี่ยต่อรายการ</p><p class="card-val" id="exa-avg">0</p></div>
+        </div>
+        <div class="card">
+            <p class="section-title">สรุปค่าใช้จ่ายหมวดที่เลือกรายเดือน (คลิกเลือกเดือน)</p>
+            <div style="overflow-x: auto;">
+                <table>
+                    <thead><tr><th>เดือน / ปี</th><th class="amt">รวมค่าใช้จ่ายที่เลือก</th></tr></thead>
+                    <tbody id="expMonthTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card">
+            <p class="card-title">แนวโน้มรายจ่ายแยกตามหมวดหมู่ที่เลือก (รายเดือน)</p>
+            <div class="chart-container" style="height: 400px;"><canvas id="expStackedBarChart"></canvas></div>
+        </div>
+        
+        <div class="charts-grid">
+            <div class="card">
+                <p class="card-title">สัดส่วนค่าใช้จ่ายเฉพาะหมวดที่เลือก (เดือนที่เลือก)</p>
+                <div class="chart-container"><canvas id="expPieChart"></canvas></div>
+            </div>
+            <div class="card">
+                <p class="section-title" id="expDetailTitle">รายละเอียดค่าใช้จ่ายหมวดที่เลือก</p>
+                <div style="overflow-x: auto; max-height: 300px;">
+                    <table id="expOnlyTable">
+                        <thead><tr><th>วันที่</th><th>รายการ</th><th>ประเภท (G)</th><th class="amt">ยอดเงิน</th></tr></thead>
+                        <tbody id="expOnlyBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 4: INCOME & JOBS -->
+    <div id="tab-income-jobs" class="tab-content">
+        <div class="stats-grid">
+            <div class="card"><p class="card-title">จำนวนงานทั้งหมด</p><p class="card-val" style="color:var(--primary)" id="job-count-total">0 งาน</p></div>
+            <div class="card"><p class="card-title">รายรับเฉลี่ยต่องาน</p><p class="card-val" style="color:var(--income)" id="job-avg-income">0</p></div>
+        </div>
+        <div class="charts-grid" style="grid-template-columns: 1fr 1fr;">
+            <div class="card">
+                <p class="section-title">สรุปรายรับและจำนวนงานรายเดือน</p>
+                <div style="overflow-x: auto;">
+                    <table>
+                        <thead><tr><th>เดือน / ปี</th><th class="amt">จำนวนงาน</th><th class="amt">รายรับรวม</th><th class="amt">เฉลี่ยต่องาน</th></tr></thead>
+                        <tbody id="jobTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="card">
+                <p class="section-title" id="incomeDetailTitle">รายละเอียดรายรับ (เดือนที่เลือก)</p>
+                <div style="overflow-x: auto; max-height: 400px;">
+                    <table id="incomeOnlyTable">
+                        <thead><tr><th>วันที่</th><th>รายการรายรับ</th><th class="amt">จำนวนเงิน</th></tr></thead>
+                        <tbody id="incomeOnlyBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="card"><p class="card-title">แนวโน้มจำนวนงาน</p><div class="chart-container"><canvas id="jobTrendChart"></canvas></div></div>
+    </div>
+
+    <!-- DRILL DOWN (General) -->
+    <div class="card" id="drillSection" style="display:none;">
+        <p class="section-title" id="drillTitle">รายละเอียดรายการรวม</p>
+        <div style="overflow-x: auto;">
+            <table>
+                <thead><tr><th>วันที่</th><th>รายการ (C)</th><th>ประเภท (G)</th><th class="amt">รายรับ</th><th class="amt">รายจ่าย</th></tr></thead>
+                <tbody id="dailyBody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    const SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS_xYrqWZ9Muah8D7mBOob-jxM7kvYQWVUjZvmiSwKvvOzOIM30x9rdq-SJB7mzdTs6f3NqgAptI0o3/pub?gid=1315799390&single=true&output=csv';
+    
+    let allData = [];
+    let monthlyData = {};
+    let categories = new Set();
+    let selectedCats = ['ค่าแรง', 'เดินทาง', 'โต๊ะจีน'];
+    let activeKey = null;
+    let charts = {};
+
+    const COLORS = ['#2563eb', '#7c3aed', '#d97706', '#0891b2', '#dc2626', '#059669', '#ec4899', '#f59e0b', '#10b981', '#6366f1'];
+
+    function parseDate(str) {
+        if (!str) return null;
+        const parts = str.split('-');
+        if (parts.length === 3) {
+            const months = { 'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3, 'May': 4, 'Jun': 5, 'Jul': 6, 'Aug': 7, 'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11 };
+            let d = parseInt(parts[0]), m = months[parts[1]], y = parseInt(parts[2]);
+            if (y < 100) y += 2000;
+            return new Date(y, m, d);
+        }
+        return null;
+    }
+
+    function fmt(n) { return (n || 0).toLocaleString('th-TH'); }
+
+    async function init() {
+        Papa.parse(SHEET_URL, {
+            download: true,
+            complete: function(res) {
+                allData = res.data;
+                processData();
+                renderCategorySelector();
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('last-update').innerText = 'อัปเดต: ' + new Date().toLocaleString('th-TH');
+            }
+        });
+    }
+
+    function processData() {
+        monthlyData = {}; categories.clear();
+        let gInc = 0, gExp = 0, gJobs = 0;
+
+        allData.forEach((row, idx) => {
+            if (idx === 0) return;
+            const date = parseDate(row[0]);
+            const inc = parseFloat(row[7]?.replace(/,/g, '')) || 0;
+            const exp = parseFloat(row[8]?.replace(/,/g, '')) || 0;
+            const item = row[2] || 'ไม่ระบุ';
+            const type = row[6] ? row[6].trim() : 'ทั่วไป';
+
+            if (date && (inc > 0 || exp > 0)) {
+                gInc += inc; gExp += exp;
+                if (inc > 0) gJobs++;
+                if (exp > 0) categories.add(type);
+
+                const mKey = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}`;
+                if (!monthlyData[mKey]) {
+                    monthlyData[mKey] = { label: date.toLocaleDateString('th-TH', { month: 'long', year: 'numeric' }), inc: 0, exp: 0, jobs: 0, catTotals: {}, items: [] };
+                }
+                monthlyData[mKey].inc += inc;
+                monthlyData[mKey].exp += exp;
+                if (inc > 0) monthlyData[mKey].jobs++;
+                if (exp > 0) monthlyData[mKey].catTotals[type] = (monthlyData[mKey].catTotals[type] || 0) + exp;
+                monthlyData[mKey].items.push({ date: date.toLocaleDateString('th-TH'), raw: date, item, type, inc, exp });
+            }
+        });
+
+        document.getElementById('ov-inc-total').innerText = fmt(gInc) + ' บาท';
+        document.getElementById('ov-exp-total').innerText = fmt(gExp) + ' บาท';
+        document.getElementById('ov-bal-total').innerText = fmt(gInc - gExp) + ' บาท';
+        document.getElementById('job-count-total').innerText = gJobs + ' งาน';
+        document.getElementById('job-avg-income').innerText = fmt(gJobs > 0 ? gInc / gJobs : 0) + ' บาท';
+
+        updateUI();
+    }
+
+    function renderCategorySelector() {
+        const container = document.getElementById('categorySelector');
+        container.innerHTML = '';
+        Array.from(categories).sort().forEach(cat => {
+            const chip = document.createElement('div');
+            chip.className = `cat-chip ${selectedCats.includes(cat) ? 'selected' : ''}`;
+            chip.innerText = cat;
+            chip.onclick = () => {
+                if (selectedCats.includes(cat)) selectedCats = selectedCats.filter(c => c !== cat);
+                else selectedCats.push(cat);
+                renderCategorySelector(); updateUI();
+            };
+            container.appendChild(chip);
+        });
+    }
+
+    function updateUI() {
+        renderOverviewTable();
+        renderInsightTable();
+        renderJobTable();
+        renderExpMonthTable();
+        updateMainCharts();
+        if (!activeKey) activeKey = Object.keys(monthlyData).sort().reverse()[0];
+        if (activeKey) selectMonth(activeKey);
+    }
+
+    function renderOverviewTable() {
+        const body = document.getElementById('ovBody'); body.innerHTML = '';
+        Object.keys(monthlyData).sort().reverse().forEach(k => {
+            const d = monthlyData[k];
+            const tr = document.createElement('tr');
+            tr.className = 'row-month'; tr.id = `ov-${k}`;
+            tr.onclick = () => selectMonth(k);
+            tr.innerHTML = `<td>${d.label}</td><td class="amt" style="color:var(--income)">${fmt(d.inc)}</td><td class="amt" style="color:var(--expense)">${fmt(d.exp)}</td><td class="amt">${fmt(d.inc - d.exp)}</td>`;
+            body.appendChild(tr);
+        });
+    }
+
+    function renderExpMonthTable() {
+        const body = document.getElementById('expMonthTableBody'); body.innerHTML = '';
+        Object.keys(monthlyData).sort().reverse().forEach(k => {
+            const d = monthlyData[k];
+            const sumSel = selectedCats.reduce((sum, cat) => sum + (d.catTotals[cat] || 0), 0);
+            const tr = document.createElement('tr');
+            tr.className = 'row-month'; tr.id = `expMonth-${k}`;
+            tr.onclick = () => selectMonth(k);
+            tr.innerHTML = `<td>${d.label}</td><td class="amt" style="color:var(--expense)">${fmt(sumSel)} บาท</td>`;
+            body.appendChild(tr);
+        });
+    }
+
+    function renderInsightTable() {
+        const body = document.getElementById('insightBody'); body.innerHTML = '';
+        Object.keys(monthlyData).sort().reverse().forEach(k => {
+            const d = monthlyData[k];
+            const sumSel = selectedCats.reduce((sum, cat) => sum + (d.catTotals[cat] || 0), 0);
+            const profit = d.inc - sumSel;
+            const tr = document.createElement('tr');
+            tr.className = 'row-month'; tr.id = `in-${k}`;
+            tr.onclick = () => selectMonth(k);
+            tr.innerHTML = `<td>${d.label}</td><td class="amt" style="color:${profit < 0 ? 'var(--expense)' : 'var(--income)'}">${fmt(profit)}</td><td><div class="insight-text ${profit > 0 ? 'insight-good' : 'insight-bad'}">${profit > 0 ? 'กำไร' : 'ขาดทุน'}เฉพาะหมวด</div></td>`;
+            body.appendChild(tr);
+        });
+    }
+
+    function renderJobTable() {
+        const body = document.getElementById('jobTableBody'); body.innerHTML = '';
+        Object.keys(monthlyData).sort().reverse().forEach(k => {
+            const d = monthlyData[k];
+            const tr = document.createElement('tr');
+            tr.className = 'row-month'; tr.id = `job-${k}`;
+            tr.onclick = () => selectMonth(k);
+            tr.innerHTML = `<td>${d.label}</td><td class="amt">${d.jobs} งาน</td><td class="amt" style="color:var(--income)">${fmt(d.inc)}</td><td class="amt">${fmt(d.jobs > 0 ? d.inc/d.jobs : 0)}</td>`;
+            body.appendChild(tr);
+        });
+    }
+
+    function selectMonth(k) {
+        if (activeKey) {
+            ['ov', 'in', 'job', 'exp', 'expMonth'].forEach(p => document.getElementById(`${p}-${activeKey}`)?.classList.remove('active'));
+        }
+        activeKey = k;
+        ['ov', 'in', 'job', 'exp', 'expMonth'].forEach(p => document.getElementById(`${p}-${k}`)?.classList.add('active'));
+        
+        const d = monthlyData[k];
+        const sumSel = selectedCats.reduce((sum, cat) => sum + (d.catTotals[cat] || 0), 0);
+        const profit = d.inc - sumSel;
+        
+        // Update Tab 2 (Analysis) Cards
+        document.getElementById('ana-inc-total').innerText = fmt(d.inc) + ' บาท';
+        document.getElementById('ana-cost-total').innerText = fmt(sumSel) + ' บาท';
+        document.getElementById('ana-profit-total').innerText = fmt(profit) + ' บาท';
+        document.getElementById('ana-profit-total').style.color = profit < 0 ? 'var(--expense)' : 'var(--income)';
+        document.getElementById('ana-profit-card').style.background = profit < 0 ? '#fef2f2' : '#f0fdf4';
+
+        // Update Tab 3 (Expense Analysis) Cards
+        const selItems = d.items.filter(i => i.exp > 0 && selectedCats.includes(i.type));
+        document.getElementById('exa-total').innerText = fmt(sumSel) + ' บาท';
+        document.getElementById('exa-count').innerText = selItems.length + ' รายการ';
+        document.getElementById('exa-avg').innerText = fmt(selItems.length > 0 ? sumSel / selItems.length : 0) + ' บาท';
+
+        document.getElementById('drillSection').style.display = 'block';
+        document.getElementById('drillTitle').innerText = `รายละเอียดรายการรวม: ${monthlyData[k].label}`;
+        document.getElementById('incomeDetailTitle').innerText = `รายละเอียดรายรับเฉพาะเดือน: ${monthlyData[k].label}`;
+        document.getElementById('expDetailTitle').innerText = `รายละเอียดค่าใช้จ่ายหมวดที่เลือก: ${monthlyData[k].label}`;
+        
+        renderDailyTable(); 
+        renderIncomeOnlyTable(k);
+        renderExpenseOnlyTable(k);
+        updateMonthCharts(k);
+    }
+
+    function renderDailyTable() {
+        const body = document.getElementById('dailyBody'); body.innerHTML = '';
+        monthlyData[activeKey].items.sort((a,b) => b.raw - a.raw).forEach(i => {
+            const tr = document.createElement('tr');
+            if (selectedCats.includes(i.type)) tr.style.background = '#fcf8e3';
+            if (i.inc > 0) tr.style.background = '#f0fdf4';
+            tr.innerHTML = `<td>${i.date}</td><td>${i.item}</td><td>${i.type}</td><td class="amt" style="color:var(--income)">${i.inc > 0 ? fmt(i.inc) : '-'}</td><td class="amt" style="color:var(--expense)">${i.exp > 0 ? fmt(i.exp) : '-'}</td>`;
+            body.appendChild(tr);
+        });
+    }
+
+    function renderIncomeOnlyTable(k) {
+        const body = document.getElementById('incomeOnlyBody'); body.innerHTML = '';
+        monthlyData[k].items.filter(i => i.inc > 0).sort((a,b) => b.raw - a.raw).forEach(i => {
+            const tr = document.createElement('tr'); tr.style.background = '#f0fdf4';
+            tr.innerHTML = `<td>${i.date}</td><td>${i.item}</td><td class="amt" style="color:var(--income)">${fmt(i.inc)}</td>`;
+            body.appendChild(tr);
+        });
+    }
+
+    function renderExpenseOnlyTable(k) {
+        const body = document.getElementById('expOnlyBody'); body.innerHTML = '';
+        monthlyData[k].items.filter(i => i.exp > 0 && selectedCats.includes(i.type)).sort((a,b) => b.raw - a.raw).forEach(i => {
+            const tr = document.createElement('tr'); tr.style.background = '#fcf8e3';
+            tr.innerHTML = `<td>${i.date}</td><td>${i.item}</td><td>${i.type}</td><td class="amt" style="color:var(--expense)">${fmt(i.exp)}</td>`;
+            body.appendChild(tr);
+        });
+    }
+
+    function switchTab(t) {
+        document.querySelectorAll('.tab-btn, .tab-content').forEach(el => el.classList.remove('active'));
+        document.querySelector(`.tab-btn[onclick="switchTab('${t}')"]`).classList.add('active');
+        document.getElementById(`tab-${t}`).classList.add('active');
+    }
+
+    function updateMainCharts() {
+        const keys = Object.keys(monthlyData).sort();
+        const labels = keys.map(k => monthlyData[k].label);
+
+        if (charts.ovT) charts.ovT.destroy();
+        charts.ovT = new Chart(document.getElementById('ovTrendChart'), {
+            type: 'bar', data: { labels, datasets: [{ label: 'รายรับ', data: keys.map(k => monthlyData[k].inc), backgroundColor: '#059669' }, { label: 'รายจ่าย', data: keys.map(k => monthlyData[k].exp), backgroundColor: '#dc2626' }] },
+            options: { maintainAspectRatio: false }
+        });
+
+        if (charts.profit) charts.profit.destroy();
+        const selExps = keys.map(k => selectedCats.reduce((sum, cat) => sum + (monthlyData[k].catTotals[cat] || 0), 0));
+        charts.profit = new Chart(document.getElementById('profitBarChart'), {
+            type: 'bar', data: { labels, datasets: [
+                { label: 'รายรับรวม', data: keys.map(k => monthlyData[k].inc), backgroundColor: 'rgba(5, 150, 105, 0.7)' },
+                { label: 'ต้นทุนหมวดที่เลือก', data: selExps, backgroundColor: 'rgba(220, 38, 38, 0.7)' },
+                { label: 'กำไรขั้นต้น', data: keys.map((k,i) => monthlyData[k].inc - selExps[i]), backgroundColor: 'rgba(37, 99, 235, 0.7)' }
+            ]}, options: { maintainAspectRatio: false }
+        });
+
+        if (charts.expStack) charts.expStackedBarChart.destroy(); // Wait, name mismatch
+        if (charts.expS) charts.expS.destroy();
+        const expDatasets = selectedCats.map((cat, idx) => ({
+            label: cat,
+            data: keys.map(k => monthlyData[k].catTotals[cat] || 0),
+            backgroundColor: COLORS[idx % COLORS.length]
+        }));
+        charts.expS = new Chart(document.getElementById('expStackedBarChart'), {
+            type: 'bar', data: { labels, datasets: expDatasets },
+            options: { maintainAspectRatio: false, scales: { x: { stacked: true }, y: { stacked: true } } }
+        });
+
+        if (charts.jobT) charts.jobT.destroy();
+        charts.jobT = new Chart(document.getElementById('jobTrendChart'), {
+            type: 'line', data: { labels, datasets: [{ label: 'จำนวนงาน', data: keys.map(k => monthlyData[k].jobs), borderColor: '#2563eb', tension: 0.3, fill: true, backgroundColor: 'rgba(37, 99, 235, 0.1)' }] },
+            options: { maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+        });
+    }
+
+    function updateMonthCharts(k) {
+        const d = monthlyData[k];
+        if (charts.ovP) charts.ovP.destroy();
+        charts.ovP = new Chart(document.getElementById('ovPieChart'), { type: 'doughnut', data: { labels: ['รายรับ', 'รายจ่าย'], datasets: [{ data: [d.inc, d.exp], backgroundColor: ['#059669', '#dc2626'] }] }, options: { maintainAspectRatio: false } });
+
+        if (charts.expP) charts.expP.destroy();
+        const pieLabels = selectedCats.filter(cat => (d.catTotals[cat] || 0) > 0);
+        const pieData = pieLabels.map(cat => d.catTotals[cat]);
+        charts.expP = new Chart(document.getElementById('expPieChart'), {
+            type: 'pie', data: { labels: pieLabels, datasets: [{ data: pieData, backgroundColor: COLORS }] },
+            options: { maintainAspectRatio: false }
+        });
+    }
+
+    init();
+</script>
+</body>
+</html>
