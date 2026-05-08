@@ -104,10 +104,6 @@
                 </table>
             </div>
         </div>
-        <div class="card">
-            <p class="card-title">แนวโน้มรายจ่ายแยกตามหมวดหมู่ที่เลือก (รายเดือน)</p>
-            <div class="chart-container" style="height: 400px;"><canvas id="expStackedBarChart"></canvas></div>
-        </div>
         <div class="charts-grid">
             <div class="card"><p class="card-title">แนวโน้มรายรับ-รายจ่าย</p><div class="chart-container"><canvas id="ovTrendChart"></canvas></div></div>
             <div class="card"><p class="card-title">สัดส่วน Income vs Expense</p><div class="chart-container"><canvas id="ovPieChart"></canvas></div></div>
@@ -122,12 +118,8 @@
             <div class="card" id="ana-profit-card"><p class="card-title">กำไรขั้นต้น (เดือนที่เลือก)</p><p class="card-val" id="ana-profit-total">0</p></div>
         </div>
         <div class="card">
-            <p class="card-title">เปรียบเทียบ รายรับ VS รายจ่ายหมวดที่เลือก VS กำไร</p>
+            <p class="card-title">เปรียบเทียบ รายรับ VS ต้นทุนแยกประเภท (Stacked) VS กำไร</p>
             <div class="chart-container" style="height: 400px;"><canvas id="profitBarChart"></canvas></div>
-        </div>
-        <div class="card">
-            <p class="card-title">แนวโน้มรายจ่ายแยกตามหมวดหมู่ที่เลือก (รายเดือน)</p>
-            <div class="chart-container" style="height: 400px;"><canvas id="expStackedBarChart"></canvas></div>
         </div>
         <div class="charts-grid">
             <div class="card">
@@ -162,10 +154,6 @@
                 <p class="card-val" id="be-ratio">0%</p>
                 <p style="font-size: 0.8rem; color: var(--muted);">* สัดส่วนต้นทุนหมวดที่เลือกเทียบกับรายรับ</p>
             </div>
-        </div>
-        <div class="card">
-            <p class="card-title">แนวโน้มรายจ่ายแยกตามหมวดหมู่ที่เลือก (รายเดือน)</p>
-            <div class="chart-container" style="height: 400px;"><canvas id="expStackedBarChart"></canvas></div>
         </div>
         <div class="charts-grid">
             <div class="card"><p class="card-title">เปรียบเทียบสัดส่วนต้นทุนแยกรายเดือน (%)</p><div class="chart-container"><canvas id="ratioTrendChart"></canvas></div></div>
@@ -218,6 +206,7 @@
                 <div style="overflow-x: auto; max-height: 400px;"><table id="incomeOnlyTable"><thead><tr><th>วันที่</th><th>รายการรายรับ</th><th class="amt">จำนวนเงิน</th></tr></thead><tbody id="incomeOnlyBody"></tbody></table></div>
             </div>
         </div>
+        <div class="card"><p class="card-title">แนวโน้มจำนวนงาน</p><div class="chart-container"><canvas id="jobTrendChart"></canvas></div></div>
     </div>
 
     <!-- TAB 6: DAILY ANALYSIS -->
@@ -573,10 +562,29 @@
             datasets.push({ label: 'กำไรขั้นต้น', data: keys.map(k => monthlyData[k].inc - selectedCats.reduce((s,c) => s + (monthlyData[k].catTotals[c] || 0), 0)), backgroundColor: 'rgba(37, 99, 235, 0.7)', stack: 'S2' });
             charts.profit = new Chart(profitCtx, { type: 'bar', data: { labels, datasets }, options: { maintainAspectRatio: false } });
         }
+        
+        const expStackCtx = document.getElementById('expStackedBarChart');
+        if (expStackCtx) {
+            if (charts.expS) charts.expS.destroy();
+            const datasets = selectedCats.map((cat, idx) => ({
+                label: cat, data: keys.map(k => monthlyData[k].catTotals[cat] || 0), backgroundColor: COLORS[idx % COLORS.length]
+            }));
+            charts.expS = new Chart(expStackCtx, {
+                type: 'bar', data: { labels, datasets },
+                options: { maintainAspectRatio: false, scales: { x: { stacked: true }, y: { stacked: true } } }
+            });
+        }
+
         const ratioTrendCtx = document.getElementById('ratioTrendChart');
         if (ratioTrendCtx) {
             if (charts.ratioT) charts.ratioT.destroy();
-            charts.ratioT = new Chart(ratioTrendCtx, { type: 'line', data: { labels, datasets: [{ label: 'สัดส่วนต้นทุน (%)', data: keys.map(k => monthlyData[k].inc > 0 ? ((selectedCats.reduce((s,c)=>s+(monthlyData[k].catTotals[c]||0),0)/monthlyData[k].inc)*100).toFixed(1) : 0), borderColor: 'var(--warning)', tension: 0.3 }] }, options: { maintainAspectRatio: false } });
+            const ratioData = keys.map(k => {
+                const inc = monthlyData[k].inc;
+                const cost = selectedCats.reduce((sum, cat) => sum + (monthlyData[k].catTotals[cat] || 0), 0);
+                return inc > 0 ? ((cost / inc) * 100).toFixed(1) : 0;
+            });
+            charts.ratioT = new Chart(ratioTrendCtx, {
+                type: 'line', data: { labels, datasets: [{ label: 'สัดส่วนต้นทุน (%)', data: ratioData, borderColor: 'var(--warning)', tension: 0.3 }] }, options: { maintainAspectRatio: false } });
         }
         const jobTrendCtx = document.getElementById('jobTrendChart');
         if (jobTrendCtx) {
