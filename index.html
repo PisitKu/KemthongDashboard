@@ -605,17 +605,60 @@
             });
         }
 
-        // Profit Bar
+        // Profit Bar (Stacked Categories)
         const profitCtx = document.getElementById('profitBarChart');
         if (profitCtx) {
             if (charts.profit) charts.profit.destroy();
-            const selExps = keys.map(k => selectedCats.reduce((sum, cat) => sum + (monthlyData[k].catTotals[cat] || 0), 0));
+            
+            // Build datasets
+            const datasets = [];
+            
+            // 1. Income Stack
+            datasets.push({
+                label: 'รายรับรวม',
+                data: keys.map(k => monthlyData[k].inc),
+                backgroundColor: 'rgba(5, 150, 105, 0.7)',
+                stack: 'Stack 0'
+            });
+
+            // 2. Costs Stack (Each selected category is a layer)
+            selectedCats.forEach((cat, idx) => {
+                datasets.push({
+                    label: cat,
+                    data: keys.map(k => monthlyData[k].catTotals[cat] || 0),
+                    backgroundColor: COLORS[idx % COLORS.length],
+                    stack: 'Stack 1'
+                });
+            });
+
+            // 3. Profit Stack
+            datasets.push({
+                label: 'กำไรขั้นต้น',
+                data: keys.map(k => {
+                    const cost = selectedCats.reduce((sum, cat) => sum + (monthlyData[k].catTotals[cat] || 0), 0);
+                    return monthlyData[k].inc - cost;
+                }),
+                backgroundColor: 'rgba(37, 99, 235, 0.7)',
+                stack: 'Stack 2'
+            });
+
             charts.profit = new Chart(profitCtx, {
-                type: 'bar', data: { labels, datasets: [
-                    { label: 'รายรับรวม', data: keys.map(k => monthlyData[k].inc), backgroundColor: 'rgba(5, 150, 105, 0.7)' },
-                    { label: 'ต้นทุนที่เลือก', data: selExps, backgroundColor: 'rgba(220, 38, 38, 0.7)' },
-                    { label: 'กำไรขั้นต้น', data: keys.map((k,i) => monthlyData[k].inc - selExps[i]), backgroundColor: 'rgba(37, 99, 235, 0.7)' }
-                ]}, options: { maintainAspectRatio: false }
+                type: 'bar',
+                data: { labels, datasets },
+                options: { 
+                    maintainAspectRatio: false,
+                    scales: { 
+                        x: { stacked: false }, // Group stacks side-by-side
+                        y: { stacked: false }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: (ctx) => `${ctx.dataset.label}: ${fmt(ctx.raw)} บาท`
+                            }
+                        }
+                    }
+                }
             });
         }
 
