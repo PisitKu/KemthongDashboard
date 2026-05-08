@@ -439,8 +439,8 @@
         const selExps = d.items.filter(i => i.exp > 0 && selectedCats.includes(i.type));
         if(document.getElementById('exa-total')) {
             document.getElementById('exa-total').innerText = fmt(sumSel) + ' บาท';
-            document.getElementById('exa-count').innerText = selItems.length + ' รายการ';
-            document.getElementById('exa-avg').innerText = fmt(selItems.length > 0 ? sumSel / selItems.length : 0) + ' บาท';
+            document.getElementById('exa-count').innerText = selExps.length + ' รายการ';
+            document.getElementById('exa-avg').innerText = fmt(selExps.length > 0 ? sumSel / selExps.length : 0) + ' บาท';
         }
 
         // Breakeven Logic
