@@ -292,16 +292,39 @@
     function fmt(n) { return (n || 0).toLocaleString('th-TH'); }
 
     async function init() {
-        Papa.parse(SHEET_URL, {
-            download: true,
-            complete: function(res) {
-                allData = res.data;
-                processData();
-                renderCategorySelector();
-                document.getElementById('loading').style.display = 'none';
-                document.getElementById('last-update').innerText = 'อัปเดต: ' + new Date().toLocaleString('th-TH');
-            }
-        });
+        try {
+            console.log("Starting data fetch...");
+            Papa.parse(SHEET_URL, {
+                download: true,
+                complete: function(res) {
+                    try {
+                        console.log("Data fetched, rows:", res.data.length);
+                        allData = res.data;
+                        processData();
+                        renderCategorySelector();
+                        document.getElementById('loading').style.display = 'none';
+                        document.getElementById('last-update').innerText = 'อัปเดต: ' + new Date().toLocaleString('th-TH');
+                    } catch (e) {
+                        console.error("Processing error:", e);
+                        showFinalError("เกิดข้อผิดพลาดในการประมวลผลข้อมูล: " + e.message);
+                    }
+                },
+                error: function(err) {
+                    console.error("Fetch error:", err);
+                    showFinalError("ไม่สามารถดึงข้อมูลจาก Google Sheets ได้: " + err);
+                }
+            });
+        } catch (e) {
+            console.error("Init error:", e);
+            showFinalError("เกิดข้อผิดพลาดในการเริ่มต้น: " + e.message);
+        }
+    }
+
+    function showFinalError(msg) {
+        const loading = document.getElementById('loading');
+        loading.style.background = '#fee2e2';
+        loading.style.color = '#b91c1c';
+        loading.innerHTML = `<div style="text-align:center; padding:20px;"><h3>โŸ—  เกิดข้อผิดพลาด</h3><p>${msg}</p><button onclick="location.reload()" style="margin-top:10px; padding:8px 16px; cursor:pointer;">ลองใหม่อีกครั้ง</button></div>`;
     }
 
     function processData() {
