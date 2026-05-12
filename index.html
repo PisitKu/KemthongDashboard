@@ -86,6 +86,7 @@
         <button class="tab-btn" onclick="switchTab('expense-analysis')">วิเคราะห์ค่าใช้จ่าย (รายประเภท)</button>
         <button class="tab-btn" onclick="switchTab('income-jobs')">สรุปรายรับ & จำนวนงาน</button>
         <button class="tab-btn" onclick="switchTab('unit-analysis')">วิเคราะห์ต่อหน่วย (โต๊ะ/ชุด)</button>
+        <button class="tab-btn" onclick="switchTab('fin-mgmt')">บริหารเงิน & งบประมาณ</button>
         <button class="tab-btn" onclick="switchTab('daily-analysis')">วิเคราะห์รายวัน</button>
     </div>
 
@@ -240,7 +241,56 @@
         </div>
     </div>
 
-    <!-- TAB 7: DAILY ANALYSIS -->
+    <!-- TAB 7: FINANCIAL MANAGEMENT -->
+    <div id="tab-fin-mgmt" class="tab-content">
+        <div class="stats-grid">
+            <div class="card">
+                <p class="card-title">กำไรขั้นต้นจากธุรกิจ (เดือนที่เลือก)</p>
+                <p class="card-val" style="color:var(--income)" id="fm-gross-profit">0</p>
+                <p style="font-size: 0.75rem; color: var(--muted);">รายรับ - (ค่าแรง+เดินทาง+โต๊ะจีน)</p>
+            </div>
+            <div class="card">
+                <p class="card-title">ค่าใช้จ่ายอื่นๆ (เดือนที่เลือก)</p>
+                <p class="card-val" style="color:var(--expense)" id="fm-other-exp">0</p>
+                <p style="font-size: 0.75rem; color: var(--muted);">ค่าใช้จ่ายรวม - ต้นทุนโต๊ะจีน</p>
+            </div>
+            <div class="card" id="fm-net-card">
+                <p class="card-title">งบประมาณคงเหลือสุทธิ</p>
+                <p class="card-val" id="fm-net-remaining">0</p>
+                <p style="font-size: 0.75rem; color: var(--muted);">เงินที่ใช้ได้หลังหักค่าใช้จ่ายทุกอย่าง</p>
+            </div>
+        </div>
+
+        <div class="charts-grid">
+            <div class="card">
+                <p class="card-title">เปรียบเทียบกำไรธุรกิจ VS ค่าใช้จ่ายอื่น</p>
+                <div class="chart-container"><canvas id="fmCompareChart"></canvas></div>
+            </div>
+            <div class="card">
+                <p class="card-title">ข้อแนะนำการลดค่าใช้จ่าย (Top Other Expenses)</p>
+                <div id="fm-suggestions" style="height: 300px; overflow-y: auto;"></div>
+            </div>
+        </div>
+
+        <div class="card">
+            <p class="section-title">ตารางแผนบริหารจัดการเงินรายเดือน</p>
+            <div style="overflow-x: auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>เดือน / ปี</th>
+                            <th class="amt">กำไรขั้นต้นธุรกิจ</th>
+                            <th class="amt">ค่าใช้จ่ายอื่น</th>
+                            <th class="amt">คงเหลือสุทธิ</th>
+                        </tr>
+                    </thead>
+                    <tbody id="fmTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 8: DAILY ANALYSIS -->
     <div id="tab-daily-analysis" class="tab-content">
         <div style="display: flex; gap: 20px; flex-wrap: wrap;">
             <div style="flex: 0 0 350px;">
@@ -399,9 +449,29 @@
         renderExpMonthTable();
         renderDailyMonthTable();
         renderUnitTable();
+        renderFinancialManagementTable();
         updateMainCharts();
         if (!activeKey) activeKey = Object.keys(monthlyData).sort().reverse()[0];
         if (activeKey) selectMonth(activeKey);
+    }
+
+    function renderFinancialManagementTable() {
+        const body = document.getElementById('fmTableBody'); body.innerHTML = '';
+        const cateringCats = ['ค่าแรง', 'เดินทาง', 'โต๊ะจีน'];
+        
+        Object.keys(monthlyData).sort().reverse().forEach(k => {
+            const d = monthlyData[k];
+            const cateringCost = cateringCats.reduce((sum, cat) => sum + (d.catTotals[cat] || 0), 0);
+            const grossProfit = d.inc - cateringCost;
+            const otherExp = d.exp - cateringCost;
+            const netRemaining = grossProfit - otherExp;
+
+            const tr = document.createElement('tr');
+            tr.className = 'row-month'; tr.id = `fm-${k}`;
+            tr.onclick = () => selectMonth(k);
+            tr.innerHTML = `<td>${d.label}</td><td class="amt" style="color:var(--income)">${fmt(grossProfit)}</td><td class="amt" style="color:var(--expense)">${fmt(otherExp)}</td><td class="amt" style="color:${netRemaining >= 0 ? 'var(--income)' : 'var(--expense)'}">${fmt(netRemaining)}</td>`;
+            body.appendChild(tr);
+        });
     }
 
     function renderUnitTable() {
@@ -487,14 +557,45 @@
 
     function selectMonth(k) {
         if (activeKey) {
-            ['ov', 'in', 'job', 'exp', 'expMonth', 'dailyMonth', 'unit'].forEach(p => document.getElementById(`${p}-${activeKey}`)?.classList.remove('active'));
+            ['ov', 'in', 'job', 'exp', 'expMonth', 'dailyMonth', 'unit', 'fm'].forEach(p => document.getElementById(`${p}-${activeKey}`)?.classList.remove('active'));
         }
         activeKey = k;
-        ['ov', 'in', 'job', 'exp', 'expMonth', 'dailyMonth', 'unit'].forEach(p => document.getElementById(`${p}-${k}`)?.classList.add('active'));
+        ['ov', 'in', 'job', 'exp', 'expMonth', 'dailyMonth', 'unit', 'fm'].forEach(p => document.getElementById(`${p}-${k}`)?.classList.add('active'));
         
         const d = monthlyData[k];
         const sumSel = selectedCats.reduce((sum, cat) => sum + (d.catTotals[cat] || 0), 0);
         const profit = d.inc - sumSel;
+        
+        // Catering Group calculation
+        const cateringCats = ['ค่าแรง', 'เดินทาง', 'โต๊ะจีน'];
+        const cateringCost = cateringCats.reduce((sum, cat) => sum + (d.catTotals[cat] || 0), 0);
+        const grossProfit = d.inc - cateringCost;
+        const otherExp = d.exp - cateringCost;
+        const netRemaining = grossProfit - otherExp;
+
+        // Update FM Cards
+        if (document.getElementById('fm-gross-profit')) {
+            document.getElementById('fm-gross-profit').innerText = fmt(grossProfit) + ' บาท';
+            document.getElementById('fm-other-exp').innerText = fmt(otherExp) + ' บาท';
+            const netEl = document.getElementById('fm-net-remaining');
+            netEl.innerText = fmt(netRemaining) + ' บาท';
+            netEl.style.color = netRemaining < 0 ? 'var(--expense)' : 'var(--income)';
+            document.getElementById('fm-net-card').style.background = netRemaining < 0 ? '#fef2f2' : '#f0fdf4';
+        }
+
+        // FM Suggestions
+        const suggestEl = document.getElementById('fm-suggestions');
+        if (suggestEl) {
+            suggestEl.innerHTML = '';
+            const others = Object.entries(d.catTotals)
+                .filter(([cat]) => !cateringCats.includes(cat))
+                .sort((a,b) => b[1] - a[1]);
+            others.forEach(([cat, val]) => {
+                const pct = otherExp > 0 ? ((val / otherExp) * 100).toFixed(0) : 0;
+                suggestEl.innerHTML += `<div class="insight-text insight-warn"><b>ลดรายจ่าย ${cat}:</b> ปัจจุบันใช้ไป ${fmt(val)} บาท (คิดเป็น ${pct}% ของค่าใช้จ่ายอื่น)</div>`;
+            });
+            if (others.length === 0) suggestEl.innerHTML = '<p style="text-align:center">ไม่มีค่าใช้จ่ายอื่นในเดือนนี้</p>';
+        }
         
         if(document.getElementById('ana-inc-total')) {
             document.getElementById('ana-inc-total').innerText = fmt(d.inc) + ' บาท';
@@ -678,6 +779,28 @@
                     datasets: [
                         { label: 'รายได้ / หน่วย', data: unitIncData, borderColor: 'var(--income)', tension: 0.3 },
                         { label: 'ต้นทุน / หน่วย', data: unitCostData, borderColor: 'var(--expense)', tension: 0.3 }
+                    ]
+                },
+                options: { maintainAspectRatio: false }
+            });
+        }
+
+        // FM Compare Chart
+        const fmCtx = document.getElementById('fmCompareChart');
+        if (fmCtx) {
+            if (charts.fmC) charts.fmC.destroy();
+            const cateringCats = ['ค่าแรง', 'เดินทาง', 'โต๊ะจีน'];
+            const labelsFM = keys.map(k => monthlyData[k].label);
+            const gpData = keys.map(k => monthlyData[k].inc - cateringCats.reduce((s,c) => s + (monthlyData[k].catTotals[c]||0), 0));
+            const otherData = keys.map(k => monthlyData[k].exp - cateringCats.reduce((s,c) => s + (monthlyData[k].catTotals[c]||0), 0));
+            
+            charts.fmC = new Chart(fmCtx, {
+                type: 'bar',
+                data: {
+                    labels: labelsFM,
+                    datasets: [
+                        { label: 'กำไรขั้นต้นธุรกิจ', data: gpData, backgroundColor: 'rgba(5, 150, 105, 0.7)' },
+                        { label: 'ค่าใช้จ่ายอื่น', data: otherData, backgroundColor: 'rgba(220, 38, 38, 0.7)' }
                     ]
                 },
                 options: { maintainAspectRatio: false }
