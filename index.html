@@ -61,12 +61,66 @@
         .be-meter-bg { background: #e2e8f0; height: 12px; border-radius: 6px; overflow: hidden; margin: 10px 0; }
         .be-meter-fill { height: 100%; transition: 0.5s width; }
 
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.5);
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            padding: 25px;
+            border: 1px solid #888;
+            width: 90%;
+            max-width: 1000px;
+            border-radius: 12px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .close:hover, .close:focus {
+            color: black;
+            text-decoration: none;
+        }
+
         @media (max-width: 600px) { .charts-grid { grid-template-columns: 1fr; } }
     </style>
 </head>
 <body>
 
 <div id="loading">กำลังเตรียมข้อมูลวิเคราะห์ธุรกิจ...</div>
+
+<!-- Modal for Suggestions Detail -->
+<div id="suggestionModal" class="modal">
+    <div class="modal-content">
+        <span class="close" onclick="closeModal()">&times;</span>
+        <h2 id="modalTitle" class="section-title">รายละเอียดค่าใช้จ่าย</h2>
+        <div style="overflow-x: auto; max-height: 500px;">
+            <table id="modalTable">
+                <thead>
+                    <tr>
+                        <th>วันที่</th>
+                        <th>รายการ</th>
+                        <th class="amt">ยอดเงิน</th>
+                    </tr>
+                </thead>
+                <tbody id="modalBody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
 
 <div class="container">
     <header style="margin-bottom: 20px; text-align:center;">
@@ -268,6 +322,7 @@
             </div>
             <div class="card">
                 <p class="card-title">ข้อแนะนำการลดค่าใช้จ่าย (Top Other Expenses)</p>
+                <p style="font-size: 0.75rem; color: var(--muted); margin-top: -8px; margin-bottom: 10px;">* คลิกที่หัวข้อเพื่อดูรายละเอียด</p>
                 <div id="fm-suggestions" style="height: 300px; overflow-y: auto;"></div>
             </div>
         </div>
@@ -592,7 +647,12 @@
                 .sort((a,b) => b[1] - a[1]);
             others.forEach(([cat, val]) => {
                 const pct = otherExp > 0 ? ((val / otherExp) * 100).toFixed(0) : 0;
-                suggestEl.innerHTML += `<div class="insight-text insight-warn"><b>ลดรายจ่าย ${cat}:</b> ปัจจุบันใช้ไป ${fmt(val)} บาท (คิดเป็น ${pct}% ของค่าใช้จ่ายอื่น)</div>`;
+                const div = document.createElement('div');
+                div.className = "insight-text insight-warn";
+                div.style.cursor = "pointer";
+                div.onclick = () => openModal(cat, k);
+                div.innerHTML = `<b>ลดรายจ่าย ${cat}:</b> ปัจจุบันใช้ไป ${fmt(val)} บาท (คิดเป็น ${pct}% ของค่าใช้จ่ายอื่น)`;
+                suggestEl.appendChild(div);
             });
             if (others.length === 0) suggestEl.innerHTML = '<p style="text-align:center">ไม่มีค่าใช้จ่ายอื่นในเดือนนี้</p>';
         }
@@ -711,6 +771,35 @@
         document.querySelectorAll('.tab-btn, .tab-content').forEach(el => el.classList.remove('active'));
         document.querySelector(`.tab-btn[onclick="switchTab('${t}')"]`).classList.add('active');
         document.getElementById(`tab-${t}`).classList.add('active');
+    }
+
+    // Modal functions
+    function openModal(cat, mKey) {
+        const d = monthlyData[mKey];
+        const modal = document.getElementById('suggestionModal');
+        const title = document.getElementById('modalTitle');
+        const body = document.getElementById('modalBody');
+        
+        title.innerText = `รายละเอียดค่าใช้จ่าย: ${cat} (${d.label})`;
+        body.innerHTML = '';
+        
+        const filtered = d.items.filter(i => i.type === cat).sort((a,b) => b.raw - a.raw);
+        filtered.forEach(i => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td>${i.date}</td><td>${i.item}</td><td class="amt" style="color:var(--expense)">${fmt(i.exp)}</td>`;
+            body.appendChild(tr);
+        });
+        
+        modal.style.display = "block";
+        
+        // Close on background click
+        window.onclick = function(event) {
+            if (event.target == modal) closeModal();
+        }
+    }
+
+    function closeModal() {
+        document.getElementById('suggestionModal').style.display = "none";
     }
 
     function updateMainCharts() {
