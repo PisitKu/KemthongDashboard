@@ -575,13 +575,15 @@
 
     function renderFinancialManagementTable() {
         const body = document.getElementById('fmTableBody'); body.innerHTML = '';
-        const cateringCats = ['ค่าแรง', 'เดินทาง', 'โต๊ะจีน'];
+        
         Object.keys(monthlyData).sort().reverse().forEach(k => {
             const d = monthlyData[k];
-            const cateringCost = cateringCats.reduce((sum, cat) => sum + (d.catTotals[cat] || 0), 0);
+            // Use selectedCats instead of hardcoded list
+            const cateringCost = selectedCats.reduce((sum, cat) => sum + (d.catTotals[cat] || 0), 0);
             const grossProfit = d.inc - cateringCost;
             const otherExp = d.exp - cateringCost;
             const netRemaining = grossProfit - otherExp;
+            
             const tr = document.createElement('tr');
             tr.className = 'row-month'; tr.id = `fm-${k}`;
             tr.onclick = () => selectMonth(k);
