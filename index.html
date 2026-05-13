@@ -585,7 +585,7 @@
             const tr = document.createElement('tr');
             tr.className = 'row-month'; tr.id = `fm-${k}`;
             tr.onclick = () => selectMonth(k);
-            tr.innerHTML = `<td>${d.label}</td><td class="amt" style="color:var(--income)">${fmt(grossProfit)}</td><td class="amt" style="color:var(--expense)">${fmt(otherExp)}</td><td class="amt" style="color:${netRemaining >= 0 ? 'var(--income)' : 'var(--expense)'}">${fmt(netRemaining)}</td>`;
+            tr.innerHTML = `<td>${d.label}</td><td class="amt" style="color:${grossProfit >= 0 ? 'var(--income)' : 'var(--expense)'}">${fmt(grossProfit)}</td><td class="amt" style="color:var(--expense)">${fmt(otherExp)}</td><td class="amt" style="color:${netRemaining >= 0 ? 'var(--income)' : 'var(--expense)'}">${fmt(netRemaining)}</td>`;
             body.appendChild(tr);
         });
     }
